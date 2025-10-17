@@ -1,14 +1,16 @@
 package clashapi
 
 import (
-	"encoding/json"
+	"io"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/sagernet/sing-box/adapter"
 	"github.com/sagernet/sing-box/log"
+	"github.com/sagernet/sing-box/option"
 	F "github.com/sagernet/sing/common/format"
+	"github.com/sagernet/sing/common/json"
 )
 
 func outboundRouter(server *Server, router adapter.Router, logFactory log.Factory) http.Handler {
@@ -19,39 +21,55 @@ func outboundRouter(server *Server, router adapter.Router, logFactory log.Factor
 
 func updateOutboundHandler(server *Server, router adapter.Router, logFactory log.Factory) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var request struct {
-			Tag    string      `json:"tag"`
-			Type   string      `json:"type"`
-			Config interface{} `json:"config"`
-		}
-
-		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		content, err := io.ReadAll(r.Body)
+		if err != nil {
 			render.Status(r, http.StatusBadRequest)
-			render.JSON(w, r, newError("Invalid request body"))
+			render.JSON(w, r, newError("Invalid request body(read): "+err.Error()))
 			return
 		}
-
-		if request.Tag == "" || request.Type == "" {
+		outboundConfig, err := json.UnmarshalExtendedContext[option.Outbound](server.ctx, content)
+		if err != nil {
+			render.Status(r, http.StatusBadRequest)
+			render.JSON(w, r, newError("Invalid request body(unmarshal): "+err.Error()))
+			return
+		}
+		// check: tag, type are required
+		if outboundConfig.Tag == "" || outboundConfig.Type == "" {
 			render.Status(r, http.StatusBadRequest)
 			render.JSON(w, r, newError("Tag and type are required"))
 			return
 		}
-
-		// Create new outbound - ensure to return error message if creation fails
+		var action string
+		if _, exists := server.outbound.Outbound(outboundConfig.Tag); exists {
+			if err := server.outbound.Remove(outboundConfig.Tag); err != nil {
+				render.Status(r, http.StatusInternalServerError)
+				render.JSON(w, r, newError("Failed to remove existing outbound: "+err.Error()))
+				return
+			}
+			action = "REPLACE"
+		} else {
+			action = "CREATED"
+		}
+		logger := logFactory.NewLogger(F.ToString("outbound/", outboundConfig.Type, "[", outboundConfig.Tag, "]"))
+		// Create new outbound
 		if err := server.outbound.Create(
-			r.Context(), router,
-			logFactory.NewLogger(F.ToString("outbound/", request.Type, "[", request.Tag, "]")),
-			request.Tag, request.Type, request.Config); err != nil {
+			server.ctx, router,
+			logger,
+			outboundConfig.Tag, outboundConfig.Type, outboundConfig.Options); err != nil {
 			// 如果Create失败，返回错误信息给接口
 			render.Status(r, http.StatusInternalServerError)
 			render.JSON(w, r, newError("Failed to create new outbound: "+err.Error()))
 			return
 		}
-
+		logger.Info("outbound update, action: ", action)
 		// Return success response
-		render.JSON(w, r, map[string]interface{}{
-			"success": true,
-			"message": "Outbound updated successfully",
+		render.Status(r, http.StatusOK)
+		render.JSON(w, r, map[string]any{
+			"action": action,
+			"outbound": map[string]any{
+				"tag":  outboundConfig.Tag,
+				"type": outboundConfig.Type,
+			},
 		})
 	}
 }
