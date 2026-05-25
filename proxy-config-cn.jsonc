@@ -21,14 +21,12 @@
       {
         "type": "udp",
         "tag": "china-dns",
-        "server": "223.5.5.5",
-        "detour": "direct-out"
+        "server": "223.5.5.5"
       },
       {
-        "type": "udp",
+        "type": "https",
         "tag": "overseas-dns",
-        "server": "8.8.8.8",
-        "detour": "dns-proxy-out"
+        "server": "1.1.1.1"
       },
       {
         "type": "local",
@@ -156,10 +154,7 @@
 
   "outbounds": [
     { "type": "direct", "tag": "direct-out" },
-    { "type": "block", "tag": "reject" },
-    // dns-proxy-out: DNS 查询出站，将通过 Clash API 动态替换为实际的代理出站
-    // 首次启动时需要一个可用的出站来解析社交平台域名
-    { "type": "direct", "tag": "dns-proxy-out" }
+    { "type": "block", "tag": "reject" }
   ],
 
   "route": {
@@ -168,25 +163,25 @@
       {
         "type": "remote",
         "tag": "geosite-cn",
-        "format": "source",
-        "url": "https://cdn.jsdelivr.net/gh/Loyalsoldier/v2ray-rules-dat@release/geosite.dat"
+        "format": "binary",
+        "url": "https://github.com/SagerNet/sing-geosite/releases/latest/download/geosite-cn.srs"
       },
       {
         "type": "remote",
         "tag": "geoip-cn",
         "format": "binary",
-        "url": "https://cdn.jsdelivr.net/gh/Loyalsoldier/v2ray-rules-dat@release/geoip.db"
+        "url": "https://github.com/SagerNet/sing-geoip/releases/latest/download/geoip-cn.srs"
       },
       {
         "type": "remote",
-        "tag": "geosite-ads",
-        "format": "source",
-        "url": "https://cdn.jsdelivr.net/gh/Loyalsoldier/v2ray-rules-dat@release/geosite.dat"
+        "tag": "geosite-category-ads-all",
+        "format": "binary",
+        "url": "https://github.com/SagerNet/sing-geosite/releases/latest/download/geosite-category-ads-all.srs"
       }
     ],
     "rules": [
       // ========== Tier 1: 拦截广告 ==========
-      { "rule_set": ["geosite-ads:category-ads-all"], "action": "reject" },
+      { "rule_set": ["geosite-category-ads-all"], "action": "reject" },
 
       // ========== Tier 2: 拦截统计/遥测/追踪 ==========
       { "domain_suffix": [".google-analytics.com", ".googletagmanager.com", ".doubleclick.net", ".googleoptimize.com"], "action": "reject" },
@@ -197,8 +192,8 @@
       { "domain": ["static.ads-twitter.com", "tellapart.com"], "action": "reject" },
 
       // ========== Tier 3: 国内流量直连 ==========
-      { "rule_set": ["geosite-cn:cn"], "action": "route", "outbound": "direct-out" },
-      { "rule_set": ["geoip-cn:cn"], "action": "route", "outbound": "direct-out" },
+      { "rule_set": ["geosite-cn"], "action": "route", "outbound": "direct-out" },
+      { "rule_set": ["geoip-cn"], "action": "route", "outbound": "direct-out" },
 
       // ========== Tier 4: 私有 IP 直连 ==========
       { "ip_is_private": true, "action": "route", "outbound": "direct-out" },

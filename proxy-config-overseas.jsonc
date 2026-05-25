@@ -138,25 +138,25 @@
       {
         "type": "remote",
         "tag": "geosite-cn",
-        "format": "source",
-        "url": "https://cdn.jsdelivr.net/gh/Loyalsoldier/v2ray-rules-dat@release/geosite.dat"
+        "format": "binary",
+        "url": "https://github.com/SagerNet/sing-geosite/releases/latest/download/geosite-cn.srs"
       },
       {
         "type": "remote",
         "tag": "geoip-cn",
         "format": "binary",
-        "url": "https://cdn.jsdelivr.net/gh/Loyalsoldier/v2ray-rules-dat@release/geoip.db"
+        "url": "https://github.com/SagerNet/sing-geoip/releases/latest/download/geoip-cn.srs"
       },
       {
         "type": "remote",
-        "tag": "geosite-ads",
-        "format": "source",
-        "url": "https://cdn.jsdelivr.net/gh/Loyalsoldier/v2ray-rules-dat@release/geosite.dat"
+        "tag": "geosite-category-ads-all",
+        "format": "binary",
+        "url": "https://github.com/SagerNet/sing-geosite/releases/latest/download/geosite-category-ads-all.srs"
       }
     ],
     "rules": [
       // ========== Tier 1: 拦截广告 ==========
-      { "rule_set": ["geosite-ads:category-ads-all"], "action": "reject" },
+      { "rule_set": ["geosite-category-ads-all"], "action": "reject" },
 
       // ========== Tier 2: 拦截统计/遥测/追踪 ==========
       { "domain_suffix": [".google-analytics.com", ".googletagmanager.com", ".doubleclick.net", ".googleoptimize.com"], "action": "reject" },
@@ -183,8 +183,8 @@
       { "domain": ["cdnjs.cloudflare.com", "ajax.cloudflare.com"], "action": "route", "outbound": "direct-out" },
 
       // ========== Tier 4: 国内流量直连 ==========
-      { "rule_set": ["geosite-cn:cn"], "action": "route", "outbound": "direct-out" },
-      { "rule_set": ["geoip-cn:cn"], "action": "route", "outbound": "direct-out" },
+      { "rule_set": ["geosite-cn"], "action": "route", "outbound": "direct-out" },
+      { "rule_set": ["geoip-cn"], "action": "route", "outbound": "direct-out" },
 
       // ========== Tier 5: 私有 IP 直连 ==========
       { "ip_is_private": true, "action": "route", "outbound": "direct-out" },
