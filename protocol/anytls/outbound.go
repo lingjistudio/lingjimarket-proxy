@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"os"
+	"strings"
 
 	"github.com/sagernet/sing-box/adapter"
 	"github.com/sagernet/sing-box/adapter/outbound"
@@ -19,15 +20,20 @@ import (
 	"github.com/sagernet/sing/common/uot"
 
 	anytls "github.com/anytls/sing-anytls"
+	"github.com/anytls/sing-anytls/util"
 )
 
 func RegisterOutbound(registry *outbound.Registry) {
 	outbound.Register[option.AnyTLSOutboundOptions](registry, C.TypeAnyTLS, NewOutbound)
+
+	if !strings.Contains(util.Version, "sing-box") {
+		util.Version = util.Version + " sing-box/" + C.Version
+	}
 }
 
 type Outbound struct {
 	outbound.Adapter
-	dialer    N.Dialer
+	dialer    tls.Dialer
 	server    M.Socksaddr
 	tlsConfig tls.Config
 	client    *anytls.Client
@@ -52,7 +58,7 @@ func NewOutbound(ctx context.Context, router adapter.Router, logger log.ContextL
 		return nil, E.New("tcp_fast_open is not supported with anytls outbound")
 	}
 
-	tlsConfig, err := tls.NewClient(ctx, options.Server, common.PtrValueOrDefault(options.TLS))
+	tlsConfig, err := tls.NewClient(ctx, logger, options.Server, common.PtrValueOrDefault(options.TLS))
 	if err != nil {
 		return nil, err
 	}
@@ -66,13 +72,15 @@ func NewOutbound(ctx context.Context, router adapter.Router, logger log.ContextL
 	if err != nil {
 		return nil, err
 	}
-	outbound.dialer = outboundDialer
+
+	outbound.dialer = tls.NewDialer(outboundDialer, tlsConfig)
 
 	client, err := anytls.NewClient(ctx, anytls.ClientConfig{
 		Password:                 options.Password,
 		IdleSessionCheckInterval: options.IdleSessionCheckInterval.Build(),
 		IdleSessionTimeout:       options.IdleSessionTimeout.Build(),
 		MinIdleSession:           options.MinIdleSession,
+		DisableReuse:             options.DisableReuse,
 		DialOut:                  outbound.dialOut,
 		Logger:                   logger,
 	})
@@ -99,16 +107,7 @@ func (d anytlsDialer) ListenPacket(ctx context.Context, destination M.Socksaddr)
 }
 
 func (h *Outbound) dialOut(ctx context.Context) (net.Conn, error) {
-	conn, err := h.dialer.DialContext(ctx, N.NetworkTCP, h.server)
-	if err != nil {
-		return nil, err
-	}
-	tlsConn, err := tls.ClientHandshake(ctx, conn, h.tlsConfig)
-	if err != nil {
-		common.Close(tlsConn, conn)
-		return nil, err
-	}
-	return tlsConn, nil
+	return h.dialer.DialTLSContext(ctx, h.server)
 }
 
 func (h *Outbound) DialContext(ctx context.Context, network string, destination M.Socksaddr) (net.Conn, error) {
